@@ -64,7 +64,6 @@ from polars._utils.deprecation import (
     issue_deprecation_warning,
 )
 from polars._utils.getitem import get_df_item_by_key
-from polars._utils.parse import parse_into_expression
 from polars._utils.pycapsule import is_pycapsule, pycapsule_to_frame
 from polars._utils.serde import serialize_polars_object
 from polars._utils.unstable import issue_unstable_warning, unstable
@@ -80,7 +79,7 @@ from polars._utils.various import (
     scale_bytes,
     warn_null_comparison,
 )
-from polars._utils.wrap import wrap_expr, wrap_ldf, wrap_s
+from polars._utils.wrap import wrap_ldf, wrap_s
 from polars.config import Config
 from polars.dataframe._html import NotebookFormatter
 from polars.dataframe.group_by import DynamicGroupBy, GroupBy, RollingGroupBy
@@ -11547,13 +11546,14 @@ class DataFrame:
         """
         if isinstance(subset, str):
             expr = F.col(subset)
-        elif isinstance(subset, pl.Expr):
-            expr = subset
-        elif isinstance(subset, Sequence) and len(subset) == 1:
-            expr = wrap_expr(parse_into_expression(subset[0]))
+        elif subset is None:
+            expr = F.struct(F.all())
         else:
-            struct_fields = F.all() if (subset is None) else subset
-            expr = F.struct(struct_fields)
+            # An expression or selector may expand to multiple columns, and a
+            # sequence may hold several columns/expressions. Packing them into a
+            # struct ensures unique *rows* over all selected columns are counted,
+            # rather than only the first expanded column (see #28903).
+            expr = F.struct(subset)
 
         from polars.lazyframe.opt_flags import QueryOptFlags
 

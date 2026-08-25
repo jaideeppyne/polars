@@ -31,6 +31,30 @@ def test_n_unique_subsets() -> None:
     )
 
 
+def test_n_unique_multi_column_expr_subset_28903() -> None:
+    import polars.selectors as cs
+
+    df = pl.DataFrame(
+        {
+            "id": [1, 2, 3, 4, 5, 6],
+            "A": [1, 2, 3, 4, 1, 2],
+            "B": [1, 2, 3, 1, 1, 1],
+        }
+    )
+    # "A" & "B" together have 5 unique rows. A `subset` that is a single
+    # expression or selector expanding to multiple columns must count unique
+    # rows over all of them, not just the first expanded column.
+    assert df.n_unique(subset=pl.col("A", "B")) == 5
+    assert df.n_unique(subset=cs.by_name("B", "A")) == 5
+    assert df.n_unique(subset=pl.exclude("id")) == 5
+    # A length-1 sequence holding a multi-column selector must behave the same.
+    assert df.n_unique(subset=[cs.by_name("A", "B")]) == 5
+
+    # Single-column subsets remain unaffected.
+    assert df.n_unique(subset=pl.col("A")) == 4
+    assert df.n_unique(subset="A") == 4
+
+
 def test_n_unique_null() -> None:
     assert pl.Series([]).n_unique() == 0
     assert pl.Series([None]).n_unique() == 1
